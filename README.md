@@ -8,6 +8,7 @@ This project consists basic codes for new beginners of quant or data science ind
 Packages included
 -----------
 	- numpy
+	- numpy.linalg
 	- pandas
 	- tushare (financial data api)
 	- talib (pdf)

@@ -10,6 +10,8 @@ Packages included
 	- numpy
 	- pandas
 	- tushare (financial data api)
+	- talib (pdf)
+	- candle line pattern recognition (pdf)
 	- crawler (very basic)
 	- statistics: basic
 	- statistics: time series

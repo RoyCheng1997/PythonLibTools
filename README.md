@@ -4,7 +4,9 @@
 Python Package Libs for Data Science
 ===================================
 This project consists basic codes for new beginners of quant or data science industry.
-Packages included:
+
+Packages included
+-----------
 	- numpy
 	- pandas
 	- tushare (financial data api)
@@ -13,8 +15,13 @@ Packages included:
 	- statistics: time series
 	- financial functions
 
-@ warning: Some codes may not be able to run since the packages have changed the related methods. Please
+Warning
+-----------
+Some codes may not be able to run since the packages have changed the related methods. Please
 refer to the api documents of newest version. I may update some of the packages(basicly used for mathematics in finance program at NYU Courant). 
-@ author: Xiao Cheng
-@ 2017
+
+
+Author
+-----------
+Xiao Cheng @ 2017
 

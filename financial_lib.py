@@ -11,8 +11,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from math import e 
+import scipy.stats as spst
+import copy
 #from scipy.stats import norm
 
+
+
+
+
+# %%                 ==============
+#                     Risk Session
+#                    ==============
 # %% Volatility measure
 
 def downsideDeviation(se_return,MARR=0):
@@ -68,9 +77,46 @@ def interPtileRange(se_return,p=0.1):
 
 # %% Downside risk measure
 
-def valueAtRisk(se_return,p=0.05):
+def valueAtRisk(se_return,p=0.95,type='Sample'):
     '''
     Calculate VaR, inf⁡{x│Pr⁡(-X>x)≤1-p}
+    
+    Parameters
+    ----------
+    se_return: list/array,price return array
+    p: float, probability
+    type: string(Sample/Normal) type of calculation
+    
+    Returns
+    -------
+    res: float,VaR
+    
+    Note
+    ----
+    numpy percentile function does the wrong thing - assumes first observation 
+    is 0 percentile and last is 100th. Cure that by adding extra observations 
+    at each end. 
+    
+    '''
+    se_return.sort()
+    if type == 'Sample':
+        se_return = copy.copy(se_return)
+        se_return.append(min(se_return)-1)
+        se_return.append(max(se_return)+1)
+        se_return = np.asarray(se_return)
+        res = -np.percentile(se_return,(1-p)*100)
+    elif type == 'Normal':
+        se_return = np.asarray(se_return)
+        samp_mean=np.mean(se_return) 
+        samp_std=np.std(se_return)
+        res = -(samp_mean+samp_std*spst.norm.ppf(1-p)) 
+    else:
+        raise ValueError("Type not in ['Sample','Normal']")
+    return res
+
+def cVaR(se_return,p=0.95,type='Sample'):
+    '''
+    Calculate cVaR
     
     Parameters
     ----------
@@ -79,14 +125,31 @@ def valueAtRisk(se_return,p=0.05):
     
     Returns
     -------
-    res: float,VaR
+    res: float,cVaR
+    type: string(Sample/Normal) type of calculation
+    
     '''
-    res = se_return.quantile(p)
-    return res
+    se_return.sort()
+    if type == 'Sample':
+        VaR = valueAtRisk(se_return,p,'Sample')
+        se_return = np.asarray(se_return)
+        nexceed = max(np.where(se_return<=-VaR)[0]) 
+        #-VaRp is (1-p) of the way between y[nexceed] and y[nexceed+1] 
+        res = -(np.sum([yy for yy in se_return if yy<=-VaR])-(1-p)*VaR)/(nexceed+2-p) 
+    elif type == 'Normal':
+        samp_mean = np.mean(se_return) 
+        samp_std = np.std(se_return)    
+        nVaR = valueAtRisk(se_return,p,'Normal')
+        se_return = np.asarray(se_return)
+        res = -samp_mean+samp_std*np.exp(-.5*(nVaR/samp_std)**2)/((1-p)*np.sqrt(2*np.pi)) 
+    else:
+        raise ValueError("Type not in ['Sample','Normal']")
+    return res    
+
 
 def expectedShortfall(se_return,p=0.05):
     '''
-    Expected shortfall, cVaR
+    Expected shortfall
     
     Parameters
     ----------
@@ -97,9 +160,33 @@ def expectedShortfall(se_return,p=0.05):
     -------
     res: float,Expected shortfall
     
+    Note
+    ----
+    May not be precise, use cVaR instead 
+    
     '''
-    res = se_return[(se_return<=se_return.quantile(p))].mean()
+    se_return = np.asarray(se_return)
+    res = -se_return[(se_return<=np.quantile(se_return,p))].mean()
     return res
+
+
+
+# %%                 ================
+#                     Pricing Session
+#                    ================
+# %% 
+    
+
+
+
+
+
+
+
+
+
+
+
 
 
 # %% Build Interest Rate Curves

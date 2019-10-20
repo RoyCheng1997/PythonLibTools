@@ -13,6 +13,7 @@ from scipy.optimize import minimize
 from math import e 
 import scipy.stats as spst
 import copy
+import random
 #from scipy.stats import norm
 
 
@@ -171,22 +172,105 @@ def expectedShortfall(se_return,p=0.05):
 
 
 
-# %%                 ================
-#                     Pricing Session
-#                    ================
+# %%                 ======================
+#                     Fixed Income Session
+#                    ======================
 # %% 
     
+def priceCouponBond(c,r,t):
+    '''
+    price simple coupon bond
+    Pt = sum(cy^i)+100y^T
+    
+    Parameters
+    ----------
+    c: float, annual coupon 
+    r: float %, discount rate r
+    t: int, years to maturity
+    
+    Returns
+    -------
+    price: float, price of the coupon bond
+    '''
+    #with annual coupon c, t years to
+    #maturity, discount rate r
+    if r<=-100:  #Unreasonable discount rate
+        return(100)
+    y=1/(1+r/100)
+    price=100*(y**t)
+    if (y==1):   #no discount rate
+        geometric=t
+    else:
+        geometric=(1-y**t)/(1-y)
+    price += geometric*c*y
+    return(price)
 
+def durationCouponBond(c,r,t,type='Macauley'):
+    '''
+    calculate duration of simple coupon bond
+    
+    Parameters
+    ----------
+    c: float, annual coupon 
+    r: float %, discount rate r
+    t: int, years to maturity
+    type: string(Macauley/Modified)
+    
+    Returns
+    -------
+    duration: float, Macauley duration of the coupon bond
+    '''
+    if r<=-100:  #Unreasonable discount rate
+        return(0)
+    y=1/(1+r/100)
+    ytothet= y**t
+    duration = 100*t*ytothet
+    if (y==1):   #no discount rate
+        multiplier=t*(t+1)/2
+    else:
+        multiplier=(1-ytothet-t*(1-y)*ytothet)/(1-y)**2
+    duration += multiplier*c*y
+    price = priceCouponBond(c,r,t)   #Rescale by price
+    duration/=price
+    if type == 'Macauley':
+        duration = duration
+    elif type == 'Modified':
+        duration *= y
+    else:
+        raise ValueError("Type not in ['Macauley','Modified']")
+    return(duration)
 
-
-
-
-
-
-
-
-
-
+def convexityCouponBond(c,r,t):
+    '''
+    convexity of simple coupon bond
+    
+    Parameters
+    ----------
+    c: float, annual coupon 
+    r: float %, discount rate r
+    t: int, years to maturity
+    
+    Returns
+    -------
+    convexity: float, convexity of the coupon bond
+    '''
+    #maturity, discount rate r
+    if r<=-100:  #Unreasonable discount rate
+        return(0)
+    y=1/(1+r/100)
+    ytothet=y**t
+    convexity=100*t*(t+1)*ytothet*(y**2)
+    if (y==1):   #no discount rate
+        ytttterm=0
+    else:
+        ytttterm=-(t+1)*(t+2)+2*t*(t+2)*y-t*(t+1)*y**2
+        ytttterm*=ytothet
+        ytttterm+=2
+        ytttterm*=c*(y/(1-y))**3
+    convexity+=ytttterm
+    price=durationCouponBond(c,r,t)   #Rescale by price
+    convexity/=price
+    return(convexity)
 
 
 # %% Build Interest Rate Curves
@@ -213,11 +297,17 @@ class BuildFCurve(object):
                 make linear interpolation of the market rate
     interpolate_NelsonSiegel: list
                 make interpolation based on Nelson-Siegel smoothed method (plot)
+    interpolate_shortRate: list,list,list
+                make linear interpolation of the market spot rate and get 
+                implied short rate curve (plot)
     optimize: list
                 Use Brute Force to optimize and get F curve
     HaganWest_iteration: list,list,list
                 Use Hagan-West iteration bootstraping method to get F and 
                 yield curve (plot)
+    HullWhite_simulation: list,list
+                Use Hull-White stochastic simulation to get sample spot curve 
+                and sample short rate curve
     getDataFrame: pandas.DataFrame,pandas.DataFrame
                 get information of the Brute Force optimization result and plot
     
@@ -283,7 +373,65 @@ class BuildFCurve(object):
         plt.ylabel('Yield Curve')
         plt.legend()        
         return NS_curve
-        
+    
+    def interpolate_shortRate(self):
+        '''
+        use monthly linear interpolation for spot(market) rate and
+        bootstrap an implied short rate curve (Risk&Port)
+        short rate: R=r(t,t)=lim r(t,t+dt) instantaneous forward rates 
+        i.e. the 5-year point on the short rate curve is the annualized rate 
+        from 5 years to 5 years plus one microsecond from now.
+        '''   
+        tenors_in = list(np.asarray(self.referTime)/12)
+        curve_in = self.referRate
+        curve_out=[]
+        tenors_out=[]
+        shortrates=[]
+        idxin=0
+        mnthin=round(tenors_in[idxin]*12)
+        months=round(tenors_in[len(tenors_in)-1]*12)
+        #Fill in curve_out every month between the knot
+        #points given in curve
+        #As curve is filled in, bootstrap a short rate curve
+        for month in range(int(months)):
+            tenors_out.append(float(month+1)/12)
+            if (month+1==mnthin):   #Are we at a knot point?
+                #Copy over original curve at this point
+                curve_out.append(curve_in[idxin])
+                #Move indicator to next knot pratematrix[0]oint
+                idxin+=1
+                if (idxin!=len(tenors_in)):
+                    #Set month number of next knot point
+                    mnthin=round(tenors_in[idxin]*12)
+            else:   #Not at a knot point - interpolate
+                timespread=tenors_in[idxin]-tenors_in[idxin-1]
+                ratespread=curve_in[idxin]-curve_in[idxin-1]
+                if (timespread<=0):
+                    curve_out.append(curve_in[idxin-1])
+                else:
+                    #compute years between previous knot point and now
+                    time_to_previous_knot=(month+1)/12-tenors_in[idxin-1]
+                    proportion=(ratespread/timespread)*time_to_previous_knot
+                    curve_out.append(curve_in[idxin-1]+proportion)
+            #Bootstrap a short rate curve
+            short=curve_out[month]    
+            if (month!=0):
+                denom=tenors_out[month]-tenors_out[month-1]
+                numer=curve_out[month]-curve_out[month-1]
+                if (denom!=0):
+                    short+=tenors_out[month]*numer/denom
+            shortrates.append(short)
+        # plot
+        plt.plot(tenors_out, curve_out, label='spot rate') 
+        plt.plot(tenors_out, shortrates, label='short rate') 
+        plt.xlabel('Tenor (years)') 
+        plt.ylabel('Rate (%/year)') 
+        plt.ylim(0,max(curve_out)+.5) 
+        plt.legend() 
+        plt.grid(True) 
+        plt.show()
+        return(tenors_out,curve_out,shortrates)    
+            
     def optimize(self):
         '''optimize function(Brute force)'''
         # set start
@@ -323,6 +471,48 @@ class BuildFCurve(object):
         plt.legend()
         plt.show()
         return zCurve,yieldCurve,fCurve
+    
+    def HullWhite_simulation(self,xlambda=1,sigma=.05):
+        '''
+        a Hull-White randomly generated short-rate curve
+        and a yield curve integrating the Hull-White short curve
+        
+        Ornstein-Uhlenbeck process: dR = \lambda*(R_infi-R)*dt+\sigma*d(\beta)
+        xlambda is spring stiffness; sigma is volatility
+        '''
+        tenors,curvemonthly,shortrates = self.interpolate_shortRate()
+        #random.seed(3.14159265)
+        randomwalk=[]
+        curvesample=[]
+        for i,rate in enumerate(shortrates):
+            if i==0: # initialize
+                randomwalk.append(shortrates[i])
+                curvesample.append(randomwalk[i])
+            else:
+                deterministic=xlambda*(shortrates[i]-randomwalk[i-1])
+                #multiply by delta-t
+                deterministic*=(tenors[i]-tenors[i-1])
+                stochastic=sigma*random.gauss(0,1)
+                randomwalk.append(randomwalk[i-1]+deterministic+stochastic)
+                #sample curve is average of short rate
+                #random walk to this point
+                cs=curvesample[i-1]*i
+                cs+=randomwalk[i]
+                cs/=(i+1)
+                curvesample.append(cs)
+        #Plot the four curves      
+        plt.plot(tenors, curvemonthly, label='spot rate curve')
+        plt.plot(tenors, shortrates, label='Implied short rate curve')
+        plt.plot(tenors, randomwalk, label='Sample short rate curve $R(\omega)$')
+        plt.plot(tenors, curvesample, label='Sample spot rate curve $\overline{R}(\omega)$')
+        ## Configure the graph
+        plt.title('Hull-White Curve Generation')
+        plt.xlabel('Tenor (years)')
+        plt.ylabel('Rate (%/year)')
+        plt.legend()
+        plt.grid(True)
+        plt.show()      
+        return (curvesample,randomwalk) # spot/short
 
     def getDataFrame(self):
         zList,zList_refer = self.__constructZ(self.f_result)
@@ -436,6 +626,9 @@ class BuildFCurve(object):
         
 
 
-
+# %%                 ====================
+#                     Simulation Session
+#                    ====================
+# %% 
 
 

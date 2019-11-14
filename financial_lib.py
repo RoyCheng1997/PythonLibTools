@@ -619,9 +619,79 @@ class BuildFCurve(object):
             mad += abs(linear_interest - ns_interest)
         return mad        
         
-# %%
-        
-        
+# %%                 ====================
+#                         Test Session
+#                    ====================
+def hotelling(T1,T2,p,m1,m2,s1,s2):
+    # Equality of mean vectors: Hotelling's Test
+    #Compute Hotelling's statistic and p value
+    #Combined covariance matrix
+    scomb=((T1-1)*s1+(T2-1)*s2)/(T1+T2-2)
+    #Multiplier for statistic
+    hmult=(T1+T2-p-1)*T1*T2/((T1+T2-2)*p*(T1+T2))
+    #Matrix algebra for statistic
+    if p==1:
+        h12=hmult*(m1-m2)**2/scomb
+    else:
+        h12=hmult*np.matmul(np.matmul(m1-m2,np.linalg.inv(scomb)),m1-m2)
+    p_value = 1 - spst.f.cdf(h12, p, T1+T2-1-p)
+    #Note when the dimension p=1, p_value will equal spst.ttest_ind(x1,x2)
+    return(h12,p_value)    
+
+def levene(T1,T2,x1,x2):
+    # Equality of variances: Levene's Test
+    # Apply Levene's Test to three-currency example with previous years compared to latest year
+    #Note the results shown are the same as
+    #scipy.stats.levene(d[:prev_year_n,k],d[prev_year_n:,k],center='mean')    
+    m1=np.average(x1)
+    m2=np.average(x2)
+    z1j=[np.abs(x1[j]-m1) for j in range(T1)]
+    z2j=[np.abs(x2[j]-m2) for j in range(T2)]
+    z1=np.average(z1j)
+    z2=np.average(z2j)
+    levene_mult=(T1+T2-2)*T1*T2/(T1+T2)
+    levene_denom=np.sum((z1j-z1)**2)+np.sum((z2j-z2)**2)
+    levene_stat=levene_mult*(z1-z2)**2/levene_denom
+    p_value = 1 - spst.f.cdf(levene_stat, 1, T1+T2-2)
+    return(levene_stat,p_value)    
+
+def BoxM(T1,T2,s1,s2):
+    # Equality of covariance matrices: Box's M Test
+    # Box M Test for covariance matrices
+    # From G.E.P. Box, "A General Distribution Theory for a Class of Likelihood Criteria",
+    # Biometrika 36, December 1949, pp. 317-346.    
+    #Tests for equality of two covariance matrices, s1 and s2
+    #T1 and T2 are numbers of observations for s1 and s2
+    #Returns M statistic and p-value
+    #Make sure dimension is common
+    if len(s1)!=len(s2):
+        print("Error: different dimensions in Box M Test:",len(s1),len(s2))
+        return(0,0)
+    #Matrices are pxp
+    p=len(s1)
+    #Form the combined matrix
+    scomb=(T1*s1+T2*s2)/(T1+T2)
+    #Box M statistic
+    Mstat=(T1+T2-2)*np.log(np.linalg.det(scomb))-(T1-1)*np.log(np.linalg.det(s1))-(T2-1)*np.log(np.linalg.det(s2))
+    #Multipliers from equation (49) in Box 1949.
+    A1=(2*p**2+3*p-1)/(6*(p+1))
+    A1*=(1/(T1-1)+1/(T2-1)-1/(T1+T2-2))
+    A2=(p-1)*(p+2)/6
+    A2*=(1/(T1-1)**2+1/(T2-1)**2-1/(T1+T2-2)**2)
+    discrim=A2-A1**2
+    #Degrees of freedom
+    df1=p*(p+1)/2
+    if discrim <= 0:
+        #Use chi-square (Box 1949 top p. 329)
+        test_value=Mstat*(1-A1)
+        p_value=1-spst.chi2.cdf(test_value,df1)
+    else:
+        #Use F Test (Box 1949 equation (68))
+        df2=(df1+2)/discrim
+        b=df1/(1-A1-(df1/df2))
+        test_value=Mstat/b
+        p_value=1-spst.f.cdf(test_value,df1,df2)
+    return(test_value,p_value)        
         
         
 

@@ -16,12 +16,13 @@ Packages included
 	- crawler (very basic)
 	- statistics: basic
 	- statistics: time series
+	- bars
 	- financial functions
+	- pricing
 
 Warning
 -----------
-Some codes may not be able to run since the packages have changed the related methods. Please
-refer to the api documents of newest version. I may update some of the packages(basicly used for mathematics in finance program at NYU Courant). 
+Some codes may not be able to run since the packages have changed the related methods. Please refer to the api documents of newest version. I may update some of the packages(basicly used for mathematics in finance program at NYU Courant). Generally, the financial_lib and pricing_lib are updated. For talib and candle line section, please refer to [my blog](http://roycheng.cn/2017/01/01/Talib/) for more information.
 
 
 Author

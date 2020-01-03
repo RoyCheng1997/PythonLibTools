@@ -9,15 +9,15 @@ This is a file containing useful functions as a Quant
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize
 from math import e 
 import scipy.stats as spst
+from scipy.stats import t
+import scipy.optimize as scpo
+from scipy.optimize import minimize_scalar,minimize
+from scipy import stats
 import copy
 import random
 #from scipy.stats import norm
-
-
-
 
 
 # %%                 ==============
@@ -595,14 +595,644 @@ def BoxM(T1,T2,s1,s2):
         b=df1/(1-A1-(df1/df2))
         test_value=Mstat/b
         p_value=1-spst.f.cdf(test_value,df1,df2)
-    return(test_value,p_value)        
-        
-        
+    return(test_value,p_value)    
+
+def testNormal(array):
+    # QQ plot
+    mean = np.mean(array)
+    stdev = np.std(array)
+    nobs = len(array)
+    x = stats.norm.ppf([i/(nobs+1) for i in range(1,nobs+1)])
+    #Plot the diagonal
+    line=plt.plot(x, x)
+    plt.setp(line, linewidth=2, color='r')
+    #Plot the actuals
+    y = np.sort(np.array((array-mean)/stdev))
+    plt.scatter(x, y, s=40, c='g')    
+    ## Configure the graph
+    plt.title('Q-Q plot')
+    plt.xlabel('Standardized Inverse Normal')
+    plt.ylabel('Standardized Observed Log-return')
+    plt.grid(True)
+    plt.show
+    # PP plot
+    x=[i/(nobs+1) for i in range(1,nobs+1)]
+    #Plot the diagonal
+    line = plt.plot(x, x)
+    plt.setp(line, linewidth=2, color='r')
+    #Plot the actuals
+    y=np.sort(np.array(stats.norm.cdf((array-mean)/stdev)))
+    plt.scatter(x, y, s=40, c='g')
+    ## Configure the graph
+    plt.title('P-P plot')
+    plt.xlabel('Fraction between 0 and 1')
+    plt.ylabel('Normal CDF of Standardized Observed Log-return')
+    plt.grid(True)
+    plt.show
+    #Jarque-Bera
+    sk = stats.skew(array)
+    ku = stats.kurtosis(array)    #This gives excess kurtosis
+    jb = (nobs/6)*(sk**2+(ku**2)/4)
+    chi2 = stats.chi2.cdf(jb,2)
+    print('Skewness %f' % sk)
+    print('Excess Kurtosis %f' % ku)
+    print('Jarque-Bera Statistic %f' % jb)
+    print('Chi-squared probability non-normal %f' % chi2)
 
 
 # %%                 ====================
-#                     Simulation Session
+#                    Distribution Session
 #                    ====================
 # %% 
 
+def distribution_studentT(dList=[5,6,7,1000]):
+    '''parameter d in t distribution'''
+    highend=[6.,-3.]
+    title_strings=["Overall view of Student\'s T densities",
+                   "Left cumulative tails of Student\'s T distributions"]
+    plt.figure(figsize=(12,4))
+    for sp, top in enumerate(highend):
+        plt.subplot(1, 2, sp+1)
+        x = np.linspace(-6., top, 100)
+        for d in dList:
+            if sp==0:
+                plt.plot(x, t.pdf(x, d), lw=3, alpha=0.6, label=str(d))
+            else:
+                plt.plot(x, t.cdf(x, d), lw=3, alpha=0.6, label=str(d))
+        plt.grid()
+        plt.legend()
+        plt.title(title_strings[sp])
+    plt.tight_layout()
+    plt.show()
+    
+def distribution_mixNormal(yList=[5,10,15,20]):
+    #Generate mixed normal kurtosis graph
+    #x contains fractions of the riskier distribution going into the mix
+    x = np.arange(.05,.5,.05)
+    #y contains the multiple (how much riskier the riskier distribution is than the less risky)  
+    y = yList
+    z=np.zeros((len(y),len(x)))
+    for i,multiple in enumerate(y): # multiple=r
+        for j,mixamount in enumerate(x): # mixamount=w1
+            #numerator
+            z[i,j] = mixamount*multiple**2
+            z[i,j] = mixamount*multiple**2+1-mixamount
+            #denominator
+            z[i,j] /= (mixamount*multiple+1-mixamount)**2
+            #multiply by 3 and subtract 3
+            z[i,j] -= 1
+            z[i,j] *= 3
+        plt.plot(x,z[i,:],label=str(multiple))
+    plt.grid()
+    plt.legend()
+    plt.xlabel('Fraction of riskier distribution, '+r'$w_1$')
+    plt.ylabel('Kurtosis of mix')
+    plt.title('Kurtosis of mixtures of normals')
+    plt.show()
+            
+def distribution_stable(alphaList=[1.1,1.5,1.7,2]):
+    highend=[6.,-3.]
+    beta = 0     #symmetric
+    title_strings=["Overall view of stable distributions",
+                   "Left cumulative tails of stable distributions"]
+    plt.figure(figsize=(12,4))
+    for sp, top in enumerate(highend):
+        plt.subplot(1, 2, sp+1)
+        x = np.linspace(-6., top, 100)
+        for alpha in alphaList:
+            if sp==0:
+                plt.plot(x, spst.levy_stable.pdf(x, alpha, beta),
+                    label=str(alpha))
+            else:
+                plt.plot(x, spst.levy_stable.cdf(x, alpha, beta),
+                    label=str(alpha))
+        plt.grid()
+        plt.legend()
+        plt.title(title_strings[sp])
+    plt.tight_layout()
+    plt.show()
+        
+def distribution_extremeValue(gamma_list=[-0.5,0.0,.5],x_list=np.arange(-2.5,3.55,.05)):
+    name_list=['Weibull','Gumbel','Frechet'] #Generate Weibull, Gumbel and Frechet densities
+    for i,gamma in enumerate(gamma_list):
+        y=[gev(gamma,x) for x in x_list]
+        plt.plot(x_list,y,label=name_list[i])
+    plt.grid()
+    plt.legend()
+    plt.title('Generalized Extreme Value Densities')
+    plt.show()     
+    
+def gev(gamma,x):
+    #Return pdf of a gev with parameter gamma at point x
+    if gamma != 0:
+        op_gamma_x = 1 + gamma*x
+        if op_gamma_x > 0:    #make sure in the support
+            oo_gamma_power=op_gamma_x**(-1/gamma)
+            gev_cdf=np.exp(-oo_gamma_power)
+            gev_pdf=oo_gamma_power*gev_cdf/op_gamma_x
+        else:
+            gev_pdf = np.nan
+    else:   #gumbel
+        gev_cdf = np.exp(-np.exp(-x))
+        gev_pdf = np.exp(-x)*gev_cdf
+    return(gev_pdf)
+
+def distribution_tail():
+    #Generate Generalized Pareto densities
+    xlist=np.arange(0,3.05,.05)
+    #gamma=0; density is exp(-x)
+    plt.plot(xlist,[np.exp(-x) for x in xlist],label='0')
+    #gamma=-.5; upper limit is 2
+    shortlist=np.arange(0,2.05,.05)
+    y=[1-x/2 for x in shortlist]
+    y+=[np.nan]*(len(xlist)-len(shortlist))
+    plt.plot(xlist,y,label='-.5')
+    #gamma=-1; constant value of 1 up to 1
+    shortlist=np.arange(0,1.05,.05)
+    y=[1]*len(shortlist)
+    y+=[np.nan]*(len(xlist)-len(shortlist))
+    plt.plot(xlist,y,label='-1')
+    #gamma=-2; blows up at x=.5
+    #1/sqrt(1-2x)
+    shortlist=np.arange(0,.5,.05)
+    y=[1/(1-2*x)**.5 for x in shortlist]
+    y+=[np.nan]*(len(xlist)-len(shortlist))
+    plt.plot(xlist,y,label='-2',color='y')
+    plt.grid()
+    plt.legend()
+    plt.title('Generalized Pareto densities')
+    plt.show()
+
+def estimate_tailParameters_example():
+    threshold=2#Take exceedances over threshold; show number and average exceedance
+    n_sample=10000#Generate 10,000 standard normal draws
+    random.seed(314159)
+    #Using this random number generator because we can control the seed
+    sample=[]
+    for i in range(n_sample):
+        sample.append(random.gauss(0,1))
+    exceeds=[s-threshold for s in sample if s>threshold]
+    numex=len(exceeds)    #exceedance count
+    avex=np.mean(exceeds) #y-bar
+    #Maximum likelihood function 6.87 with these values
+    maxlike=-numex*(np.log(avex)+1)
+    print('Number of exceedances over {0}: {1}'.format(threshold,numex))
+    print('Expected exceedances: {0}'.format(int(n_sample*spst.norm.cdf(-2)+.5)))
+    print('Average exceedance:',avex)
+    print('Maximum likelihood function at beta:',maxlike)
+    #initial guess for parameters is gumbel
+    init_params=[0.,np.log(avex)]
+    #Log-max-likelihood for GPD. Sign is reversed since we are using minimize.
+    def gpd_lml(params):
+        gma,beta_log=params
+        #enforce positive beta
+        beta=np.exp(beta_log)
+        #check if gamma=0
+        tolerance=10**(-9)
+        if abs(gma)<tolerance:
+            return(numex*(beta_log+avex/beta))
+        #uses "exceeds" vector computed above
+        log_sum=0
+        #sum ln(1+gamma*yi/beta) when positive
+        for i in range(numex):
+            arg_log=1+gma*exceeds[i]/beta
+            if arg_log<=0:
+                log_sum+=1000*np.sign(1+1/gma)  #put a very discouraging amount in the sum
+            else:
+                log_sum+=np.log(arg_log)
+        #scale
+        log_sum*=(1+1/gma)
+        if beta<=0:
+            log_sum+=1000
+        else:
+            log_sum+=numex*np.log(beta)
+        return(log_sum)   
+    #Run the minimization.
+    results = scpo.minimize(gpd_lml,
+                                init_params,
+                                method='CG')
+    gma_res,beta_res=results.x
+    beta_res=np.exp(beta_res)   #move back from log space
+    print("Optimal gamma:",gma_res)
+    print("Optimal beta:",beta_res)
+    print("Support cap mF:",-beta_res/gma_res)
+    print("Optimal LML:",-results.fun)
+    #Show the CDF plot
+    #x's are sorted values of the exceedances
+    xsample=np.sort(exceeds)
+    ysample=[(i+1)/(numex+1) for i in range(numex)]
+    ygumbel=[1-np.exp(-x/avex) for x in xsample]
+    yfitted=[1-(1+gma_res*x/beta_res)**(-1/gma_res) for x in xsample]
+    plt.plot(xsample,ysample,label='Sample')
+    plt.plot(xsample,ygumbel,label='Gumbel')
+    plt.plot(xsample,yfitted,label='Fitted')
+    plt.grid()
+    plt.legend()
+    plt.title('Figure 6.15: cdfs of empirical, Gumbel, and fitted distributions')
+    plt.show
+    
+# %%                 ==================
+#                    Volatility Session
+#                    ==================
+# %% 
+# See 'stats_timeSeries_lib' for more time series functions
+def Garch11Fit(initparams,InputData):
+    import scipy.optimize as scpo
+    import numpy as np
+    #Fit a GARCH(1,1) model to InputData using (8.42)
+    #Returns the triplet a,b,c (actually a1, b1, c) from (8.41)
+    #Initial guess is the triple in initparams
+
+    array_data=np.array(InputData)
+
+    def GarchMaxLike(params):
+        import numpy as np        
+        #Implement formula 6.42
+        xa,xb,xc=params
+        if xa>10: xa=10
+        if xb>10: xb=10
+        if xc>10: xc=10
+        #Use trick to force a and b between 0 and .999;
+        #(a+b) less than .999; and c>0
+        a=.999*np.exp(xa)/(1+np.exp(xa))
+        b=(.999-a)*np.exp(xb)/(1+np.exp(xb))
+        c=np.exp(xc)
+        t=len(array_data)
+        minimal=10**(-20)
+        vargarch=np.zeros(t)
+
+        #CHEATS!
+        #Seed the variance with the whole-period variance
+        #In practice we would have to have a holdout sample
+        #at the beginning and roll the estimate forward.
+        vargarch[0]=np.var(array_data)
+
+        #Another cheat: take the mean over the whole period
+        #and center the series on that. Hopefully the mean
+        #is close to zero. Again in practice to avoid lookahead
+        #we would have to roll the mean forward, using only
+        #past data.
+        overallmean=np.mean(array_data)
+        #Compute GARCH(1,1) var's from data given parameters
+        for i in range(1,t):
+            #Note offset - i-1 observation of data
+            #is used for i estimate of variance
+            vargarch[i]=c+b*vargarch[i-1]+\
+            a*(array_data[i-1]-overallmean)**2
+            if vargarch[i]<=0:
+                vargarch[i]=minimal
+                
+        #sum logs of variances
+        logsum=np.sum(np.log(vargarch))
+        #sum yi^2/sigma^2
+        othersum=0
+        for i in range(t):
+            othersum+=((array_data[i]-overallmean)**2)/vargarch[i]
+        #Actually -2 times (6.42) since we are minimizing
+        return(logsum+othersum)
+    #End of GarchMaxLike
+
+    #Transform parameters to the form used in GarchMaxLike
+    #This ensures parameters are in bounds 0<a,b<1, 0<c
+    aparam=np.log(initparams[0]/(.999-initparams[0]))
+    bparam=np.log(initparams[1]/(.999-initparams[0]-initparams[1]))
+    cparam=np.log(initparams[2])
+    xinit=[aparam,bparam,cparam]
+    #Run the minimization. Constraints are built-in.
+    results = scpo.minimize(GarchMaxLike,
+                            xinit,
+                            method='CG')
+    aparam,bparam,cparam=results.x
+    a=.999*np.exp(aparam)/(1+np.exp(aparam))
+    b=(.999-a)*np.exp(bparam)/(1+np.exp(bparam))
+    c=np.exp(cparam)
+
+    return([a,b,c])
+    
+# %%                 ===================
+#                    Correlation Session
+#                    ===================
+# %% 
+#Generate graph of either simulated or historical sample correlation from df_logs
+def make_corr_plot(df_logs, rtrial, samplesize, title_str, simulate):
+    #Generate a multivariate normal distribution using the data in df_logs
+    #compute sample correlations of size samplesize and graph them
+    #simulate: False, use historical data in df_logs
+    #          True, use simulated data in rtrial
+    nobs=len(df_logs)
+    periodicity=52
+    samplecorrs=[]
+    corr_matrix=df_logs[df_logs.columns].corr()
+    #Get sample correlations
+    if simulate:
+        for i in range(samplesize,nobs+1):
+            samplecorrs.append(np.corrcoef(rtrial[i-samplesize:i].transpose()))
+    else:
+        for i in range(samplesize,nobs+1):
+            samplecorrs.append(df_logs.iloc[i-samplesize:i] \
+                    [df_logs.columns].corr().values)
+    sccol=['r','g','b']
+    stride=int((nobs-periodicity+1)/(4*periodicity))*periodicity
+    dates=df_logs.index[samplesize-1:]
+    plot_corrs(dates,samplecorrs,corr_matrix,sccol,stride, \
+        title_str+str(samplesize)+'-week sample correlations')
+    
+def plot_corrs(dates,corrs,corr_matrix,sccol,stride,title_str):
+    #dates and corrs have same length
+    #dates in datetime format
+    #corrs is a list of correlation matrices
+    #corr_matrix has the target correlations
+    #names of securities are the column names of corr_matrix
+    #sccol is colors for lines
+    #stride is how many dates to skip between ticks on x-axis
+    #title_str is title string
+    nobs=len(corrs)
+    nsecs=len(corrs[0])
+    #plot correlations in corrs, nsec per time period
+    ncorrs=nsecs*(nsecs-1)/2
+    z=0
+    #Go through each pair
+    for j in range(nsecs-1):
+        for k in range(j+1,nsecs):
+            #form time series of sample correlations
+            #for this pair of securities
+            cs=[corrs[i][j,k] for i in range(nobs)]
+            plt.plot(range(nobs),cs, \
+                     label=corr_matrix.columns[j]+'/'+ \
+                     corr_matrix.columns[k], \
+                     color=sccol[z])
+            #Show target correlation in same color
+            line=[corr_matrix.iloc[j,k]]*(nobs)
+            plt.plot(range(nobs),line,color=sccol[z])
+            z+=1
+    plt.legend()
+    tix=[x.strftime("%Y-%m-%d") for x in dates[0:nobs+1:stride]]
+    plt.xticks(range(0,nobs+1,stride),tix,rotation=45)
+    plt.title(title_str)
+    plt.grid()
+    plt.show()
+
+# Implementation of Dynamic Conditional Correlations
+def deGarch(df_logs):
+    '''Garch(1,1) model and deGarch'''
+    periodicity=52
+    corr_matrix=df_logs[df_logs.columns[1:]].corr()
+    overallmean=np.mean(df_logs)
+    overallstd=np.std(df_logs)
+    tickerlist=df_logs.columns[1:]   #skip the date column
+    #Get GARCH params for each ticker
+    gparams=[]
+    initparams=[.12,.85,.6]
+    stgs=[] #Save the running garch sigma's
+    for it,ticker in enumerate(tickerlist):
+        #Note ORDER MATTERS: make sure values are in date order
+        gparams.append(Garch11Fit(initparams, \
+            df_logs.sort_values(by="Date")[ticker]))
+        a,b,c=gparams[it]
+        
+        #Create time series of sigmas
+        t=len(df_logs[ticker])
+        minimal=10**(-20)
+        stdgarch=np.zeros(t)
+        stdgarch[0]=overallstd[ticker]
+        #Compute GARCH(1,1) stddev's from data given parameters
+        for i in range(1,t):
+            #Note offset - i-1 observation of data
+            #is used for i estimate of std deviation
+            previous=stdgarch[i-1]**2
+            var=c+b*previous+\
+                a*(df_logs.sort_values(by="Date")[ticker][i-1] \
+                -overallmean[ticker])**2
+            stdgarch[i]=np.sqrt(var)
+        #Save for later de-GARCHing
+        stgs.append(stdgarch)
+    #Demeaned, DeGARCHed series go in dfeps
+    dfeps=df_logs.sort_values(by="Date").copy()
+    for it,ticker in enumerate(tickerlist):
+        dfeps[ticker]-=overallmean[ticker]
+        for i in range(len(dfeps)):
+            dfeps[ticker].iloc[i]/=stgs[it][i]
+        print('-'*20)
+        print(ticker)
+        print('DeGARCHed Mean:',np.mean(dfeps[ticker]))
+        print('Raw annualized Std Dev:',np.sqrt(periodicity)*overallstd[ticker])
+        print('DeGARCHed Std Dev:',np.std(dfeps[ticker]))
+        print('Raw excess kurtosis:',spst.kurtosis(df_logs[ticker]))
+        print('DeGARCHed Excess Kurtosis:',spst.kurtosis(dfeps[ticker]))    
+    InData=np.array(dfeps[tickerlist])
+    return InData
+    
+def IntegratedCorrObj(s):
+    '''Optimize Object for Integrated Correlation'''
+    #Compute time series of quasi-correlation
+    #matrices from InData using integrated parameter
+    #xlam=exp(s)/(1+exp(s)); note this format removes
+    #the need to enforce bounds of xlam being between
+    #0 and 1. This is applied to formula 9.44.
+    #Standardize Q's and apply formula 9.49.
+    #Returns scalar 9.49
+    xlam=np.exp(s)
+    xlam/=1+xlam
+    obj9p39=0.
+    previousq=np.identity(len(InData[0]))
+    #Form new shock matrix
+    for i in range(len(InData)):
+        #standardize previous q matrix
+        #and compute contribution to objective
+        #function
+        stdmtrx=np.diag([1/np.sqrt(previousq[s,s]) for s in range(len(previousq))])
+        previousr=np.matmul(stdmtrx,np.matmul(previousq,stdmtrx))
+        #objective function
+        obj9p39+=np.log(np.linalg.det(previousr))
+        shockvec=np.array(InData[i])
+        vec1=np.matmul(shockvec,np.linalg.inv(previousr))
+        #This makes obj9p39 into a 1,1 matrix
+        obj9p39+=np.matmul(vec1,shockvec)
+              
+        #Update q matrix
+        shockvec=np.mat(shockvec)
+        shockmat=np.matmul(shockvec.T,shockvec)
+        previousq=xlam*shockmat+(1-xlam)*previousq
+    return(obj9p39[0,0])    
+
+def MeanRevCorrObj(params):
+    '''Optimize Object for Mean Reverting Correlation'''
+    #Compute time series of quasi-correlation
+    #matrices from InData using mean reverting
+    #formula 9.45. Standardize them and apply
+    #formula 9.49. Returns scalar 9.49
+    #Extract parameters
+    alpha,beta=params
+    #Enforce bounds
+    if alpha<0 or beta<0:
+        return(10**20)
+    elif (alpha+beta)>.999:
+        return(10**20)
+    obj9p39=0
+    #Initial omega is obtained through correlation targeting
+    Rlong=np.corrcoef(InData.T)
+    previousq=np.identity(len(InData[0]))
+    #Form new shock matrix
+    for i in range(len(InData)):
+        #standardize previous q matrix
+        #and compute contribution to objective
+        #function
+        stdmtrx=np.diag([1/np.sqrt(previousq[s,s]) \
+                         for s in range(len(previousq))])
+        previousr=np.matmul(stdmtrx,np.matmul(previousq,stdmtrx))
+        #objective function
+        obj9p39+=np.log(np.linalg.det(previousr))
+        shockvec=np.array(InData[i])
+        vec1=np.matmul(shockvec,np.linalg.inv(previousr))
+        #This makes obj9p39 into a 1,1 matrix
+        obj9p39+=np.matmul(vec1,shockvec)
+              
+        #Update q matrix
+        shockvec=np.mat(shockvec)
+        shockmat=np.matmul(shockvec.T,shockvec)
+        previousq=(1-alpha-beta)*Rlong+alpha*shockmat+beta*previousq
+    return(obj9p39[0,0])
+    
+def compute_integratedCorr(df_logs,InData):
+    '''Compute integrated correlations'''
+    periodicity = 52
+    result=minimize_scalar(IntegratedCorrObj)
+    xlamopt=np.exp(result.x)
+    xlamopt/=1+xlamopt
+    print('Optimal lambda:',xlamopt)
+    print('Optimal objective function:', \
+          result.fun)
+    if xlamopt>=1 or xlamopt==0:
+        halflife=0
+    else:
+        halflife=-np.log(2)/np.log(1-xlamopt)
+    print('Half-life (years):',halflife/periodicity)
+    
+    #Compute integrated correlations
+    nobs=len(InData)
+    nsecs=len(InData[0])
+    #Start quasi-correlation matrix series with identity
+    previousq=np.identity(nsecs)
+    rmatrices=[]
+    for i in range(nobs):
+        stdmtrx=np.diag([1/np.sqrt(previousq[s,s]) for s in range(nsecs)])
+        rmatrices.append(np.matmul(stdmtrx,np.matmul(previousq,stdmtrx)))
+        shockvec=np.mat(np.array(InData[i]))
+        #Update q matrix
+        shockmat=np.matmul(shockvec.T,shockvec)
+        previousq=xlamopt*shockmat+(1-xlamopt)*previousq
+    
+    #Plot integrated correlations
+    iccol=['r','g','b']
+    xtitle='Integrated correlations λ=%1.5f' % xlamopt
+    xtitle+=', '+min(df_logs.index.strftime("%Y-%m-%d"))+':'+ \
+                      max(df_logs.index.strftime("%Y-%m-%d"))
+    dates=df_logs.index
+    stride=5*periodicity
+    corr_matrix=df_logs[df_logs.columns].corr()
+    plot_corrs(dates,rmatrices,corr_matrix,iccol,stride,xtitle)
+    
+def compute_meanRevCorr(df_logs,InData):
+    '''Compute mean reverting correlations'''
+    periodicity = 52
+    #alpha and beta positive
+    corr_bounds = scpo.Bounds([0,0],[np.inf,np.inf])
+    #Sum of alpha and beta is less than 1
+    corr_linear_constraint = \
+        scpo.LinearConstraint([[1, 1]],[0],[.999])
+    
+    initparams=[.02,.93]
+    
+    results = scpo.minimize(MeanRevCorrObj, \
+            initparams, \
+            method='trust-constr', \
+            jac='2-point', \
+            hess=scpo.SR1(), \
+            bounds=corr_bounds, \
+            constraints=corr_linear_constraint)
+    
+    alpha,beta=results.x
+    print('Optimal alpha, beta:',alpha,beta)
+    print('Optimal objective function:',results.fun)
+    halflife=-np.log(2)/np.log(1-alpha)
+    print('Half-life (years):',halflife/periodicity)
+    
+    #Compute mean reverting correlations
+    nobs=len(InData)
+    nsecs=len(InData[0])
+    previousq=np.identity(nsecs)
+    Rlong=np.corrcoef(InData.T)
+    rmatrices=[]
+    for i in range(nobs):
+        stdmtrx=np.diag([1/np.sqrt(previousq[s,s]) for s in range(nsecs)])
+        rmatrices.append(np.matmul(stdmtrx,np.matmul(previousq,stdmtrx)))
+        shockvec=np.mat(np.array(InData[i]))
+        #Update q matrix
+        shockmat=np.matmul(shockvec.T,shockvec)
+        previousq=(1-alpha-beta)*Rlong+alpha*shockmat+beta*previousq
+    
+    #Plot mean-reverting correlations
+    iccol=['r','g','b']
+    xtitle='Mean Reverting Correlations α=%1.5f' % alpha
+    xtitle+=', β=%1.5f' % beta
+    xtitle+=', '+min(df_logs.index.strftime("%Y-%m-%d"))+':'+ \
+                 max(df_logs.index.strftime("%Y-%m-%d"))
+    dates=df_logs.index
+    stride=5*periodicity
+    corr_matrix=df_logs[df_logs.columns].corr()
+    plot_corrs(dates,rmatrices,corr_matrix,iccol,stride,xtitle)
+
+def MacGyver_method(tickerlist,dfeps,method='integrated'):
+    '''MacGyver method of pairwise calculation'''
+    periodicity = 52
+    minimal=10**(-20)
+    xlams,alphas,betas=[],[],[]
+    for it in range(len(tickerlist)-1):
+        tick1=tickerlist[it]
+        for jt in range(it+1,len(tickerlist)):
+            tick2=tickerlist[jt]
+            InData=np.array(dfeps[[tick1,tick2]]) # global cast
+            # integrated corr.
+            if method == 'integrated':
+                result=minimize_scalar(IntegratedCorrObj)
+                xlamopt=np.exp(result.x)/(1+np.exp(result.x))
+                print(tick1,tick2)
+                print('    Optimal lambda:',xlamopt)
+                print('    Optimal objective function:', \
+                      result.fun)
+                if np.absolute(xlamopt)<minimal or xlamopt>=1:
+                    halflife=0
+                else:
+                    halflife=-np.log(2)/np.log(1-xlamopt)
+                print('    Half-life (years):',halflife/periodicity)
+                xlams.append(xlamopt)
+            # mean revert corr.
+            elif method == 'meanRev':
+                #alpha and beta positive
+                corr_bounds = scpo.Bounds([0,0],[np.inf,np.inf])
+                #Sum of alpha and beta is less than 1
+                corr_linear_constraint = \
+                    scpo.LinearConstraint([[1, 1]],[0],[.999])
+            
+                initparams=[.02,.93]
+                results = scpo.minimize(MeanRevCorrObj, \
+                        initparams, \
+                        method='trust-constr', \
+                        jac='2-point', \
+                        hess=scpo.SR1(), \
+                        bounds=corr_bounds, \
+                        constraints=corr_linear_constraint)
+                alpha,beta=results.x
+                print('Optimal alpha, beta:',alpha,beta)
+                print('Optimal objective function:',results.fun)
+                halflife=-np.log(2)/np.log(1-alpha)
+                print('Half-life (years):',halflife/periodicity)
+                alphas.append(alpha)
+                betas.append(beta)
+     # cout median values
+    if method == 'integrated':
+        print('\nMedian MacGyver lambda:',np.median(xlams))
+    elif method == 'meanRev':
+        print('\nMedian MacGyver alpha:',np.median(alphas))
+        print('\nMedian MacGyver beta:',np.median(betas))
 

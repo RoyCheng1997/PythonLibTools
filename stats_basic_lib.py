@@ -52,13 +52,13 @@ year_return = pd.read_csv('dat\\TRD_Year.csv',encoding='gbk') #注意不能再co
 PSID = pd.read_csv('dat\\PSID.csv')
 model1 = OLS.from_formula('Return ~ C(Industry)',data = year_return.dropna()).fit()
 table1 = anova.anova_lm(model1) #p=PR 原假设:不同行业对return没有影响 p<a则拒绝原假设
-print table1
+print(table1)
 model2 = OLS.from_formula('earnings ~ C(married)+C(educatn)',data = PSID.dropna()).fit()
 table2 = anova.anova_lm(model2)
-print table2                                                                              
+print(table2)                                                             
 model3 = OLS.from_formula('earnings ~ C(married)*C(educatn)',data = PSID.dropna()).fit() #增加交互项
 table3 = anova.anova_lm(model3)
-print table3
+print(table3)
 
 #回归分析=================================================================================
 #一元回归模型
@@ -153,7 +153,7 @@ model6.forcast(3)[0] #预测后三个数据
 '''GARCH模型'''#条件方差即波动率
 am = arch_model(series) #默认建立GARCH(1,1)模型
 model = am.fit(update_freq=0) #表示不输出中间结果 只输出最终结果
-print model.summary()
+print(model.summary())
 
 
 

@@ -8,10 +8,9 @@ Created on Wed May  3 20:09:56 2017
 import pandas as pd
 import numpy as np
 import sys
-from pandas import Series,DataFrame
 import json
 #Series##############################################################
-obj = Series([4,7,-5,3],index=['a','b','c','d']) #创建series（包含index的array）
+obj = pd.Series([4,7,-5,3],index=['a','b','c','d']) #创建series（包含index的array）
 obj['a'] #利用指数索引
 obj[1]  #t同上作用 指数位数索引
 obj[2:4] #2-3行
@@ -29,7 +28,7 @@ obj.name='population'    #命名
 obj.index.name='state'    #指数命名
 obj.drop(['a','c'])   #按照index丢弃
 obj2=obj.reindex(['a','b','c','d','e'],fill_value=0)#重排列索引 并赋空值为0
-obj3=Series(['blue','purple','yellow'],index=[0,2,4])
+obj3=pd.Series(['blue','purple','yellow'],index=[0,2,4])
 obj3.reindex(range(6),method='ffill')#向前填充
 obj.unique() #唯一值
 obj.index.is_unique #判断index是否是唯一
@@ -40,8 +39,8 @@ obj.sort_index(axis=0,ascending=False) #按照index排序
 obj.order()#默认排序 将NA值放在Series末尾
 #dataframe构建及修改###################################################
 data = {'state':['Ohio','Ohio','Ohio','Nevada','Nevada'],'year':[2000,2001,2002,2001,2002],'pop':[1.5,1.7,3.6,2.4,2.9]}
-frame= DataFrame(data)#由字典创建dataframe
-DataFrame(data,columns=['year','state','pop'],index=['a','b','c','d','e'])#重排序列及指数修改
+frame= pd.DataFrame(data)#由字典创建dataframe
+pd.DataFrame(data,columns=['year','state','pop'],index=['a','b','c','d','e'])#重排序列及指数修改
 frame['debt']=np.arange(5.) #新建列并赋值
 frame['debt']=Series([-1.2,-1.5,-1.7],index=['a','c','e']) #新建列用series赋值
 frame['eastern']=frame.state=='Ohio' #利用布尔值创建新列标记
@@ -69,7 +68,7 @@ groups.mean()
 groups.max()
 groups.size()
 # ix索引-------------------------------------
-data = DataFrame(np.arange(16).reshape((4,4)),index=['Ohio','Colorado','Utah','New Work'],columns=['one','two','three','four'])
+data = pd.DataFrame(np.arange(16).reshape((4,4)),index=['Ohio','Colorado','Utah','New Work'],columns=['one','two','three','four'])
 data.ix['Colorado',['two','three']] # 列，行
 data.ix[['Colorado','Utah'],[3,0,1]] # 行， 列
 data.ix[data.three>5,:3] #条件+列
@@ -112,14 +111,18 @@ returns.corr()
 returns.cov()    
 returns.MSFT.corr(returns.IBM) #返回两列相关性
 returns.corrwith(returns.IBM)  #一个sery和整个df的列的相关性
-df[u'移动均值']=pd.rolling_mean(df['Close'],window=42)   #计算移动指标
-df[u'移动std']=pd.rolling_std(df['Close'],window=42)   #计算移动指标
-
+#df[u'移动均值']=pd.rolling_mean(df['Close'],window=42)   #计算移动指标
+#df[u'移动std']=pd.rolling_std(df['Close'],window=42)   #计算移动指标
+df[u'移动均值']=df.rolling(42).mean()
+df[u'移动std']=df.rolling(42).std()
 
 #dataframe处理缺省值################################################        
 data = pd.DataFrame(np.random.randn(7,3))
-data.ix[:4,1] = np.nan
-data.ix[:2,2] = np.nan
+data.ix[:4,1] = np.nan # depreciated
+data.ix[:2,2] = np.nan # depreciated
+#.ix is deprecated. Please use
+#.loc for label based indexing or
+#.iloc for positional indexing
 data.dropnna(axis=0) #除去含na的行 默认axis=0
 data.dropna(thresh = 3) #同上
 data.dropna(how='all') #除去全为na的行

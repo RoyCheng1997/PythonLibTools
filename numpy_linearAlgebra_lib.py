@@ -22,6 +22,7 @@ np.dot(ma2,ma1) # 3*3
 np.inner(vec1,vec2)
 np.outer(vec1,vec2)
 # power
+mas**2
 np.linalg.matrix_power(mas,2)
 
 

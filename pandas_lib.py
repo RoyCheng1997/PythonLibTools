@@ -9,7 +9,8 @@ import pandas as pd
 import numpy as np
 import sys
 import json
-#Series##############################################################
+# %%
+#Series ================================================================
 obj = pd.Series([4,7,-5,3],index=['a','b','c','d']) #创建series（包含index的array）
 obj['a'] #利用指数索引
 obj[1]  #t同上作用 指数位数索引
@@ -37,7 +38,10 @@ mark = obj.isin(['b','c']) #返回一个布尔series 判断是否属于b c
 obj[mark] #返回筛选出只含bc的series
 obj.sort_index(axis=0,ascending=False) #按照index排序
 obj.order()#默认排序 将NA值放在Series末尾
-#dataframe构建及修改###################################################
+
+
+# %%
+#dataframe 构建及修改 ========================================
 data = {'state':['Ohio','Ohio','Ohio','Nevada','Nevada'],'year':[2000,2001,2002,2001,2002],'pop':[1.5,1.7,3.6,2.4,2.9]}
 frame= pd.DataFrame(data)#由字典创建dataframe
 pd.DataFrame(data,columns=['year','state','pop'],index=['a','b','c','d','e'])#重排序列及指数修改
@@ -50,8 +54,8 @@ frame2 = frame.reindex(index=['a','b','c','b'],colums=['Texas','Utah','Californi
 frame2 = frame.ix[['a','b','c','b'],['Texas','Utah','California']] #作用同上无填充
 frame2.drop(['Utah','California']) #丢弃列
 
-
-#dataframe选取索引切片################################################
+# %%
+#dataframe选取索引切片 ========================================
 frame.values #返回ndarray类型的全部数据
 frame['state'] #选取列 返回series
 frame.state #选取列 返回series
@@ -91,7 +95,8 @@ df1 = df.set_index(['c','d'])
 df.set_index(['c','d'],drop=False) #保留下设为index的列
 
 
-#dataframe运算######################################################
+#%%
+#dataframe运算 ===========================================
 df1.add(df2.fill_value = 0) #plus 用0填充空值
 #sub div mul
 f = lambda x: x.max()-x.min()
@@ -99,7 +104,7 @@ data.apply(f,axis=1)
 def f(x): return Series([x.min(),x.max()],index=['min','max'])
 data.apply(f)
 format = lambda x: '%.2f'%x
-data.applymap(format) 
+data.applymap(format) # dataframe/seri.apply(lambda x:...)
 data.sum(axis=1) #每行求和       
 data.mean(axis=1,skipna=False)        
 data.idxmax() #达到最小值或最大值的索引值
@@ -116,7 +121,9 @@ returns.corrwith(returns.IBM)  #一个sery和整个df的列的相关性
 df[u'移动均值']=df.rolling(42).mean()
 df[u'移动std']=df.rolling(42).std()
 
-#dataframe处理缺省值################################################        
+
+#%%
+#dataframe处理缺省值 ===========================================        
 data = pd.DataFrame(np.random.randn(7,3))
 data.ix[:4,1] = np.nan # depreciated
 data.ix[:2,2] = np.nan # depreciated
@@ -134,8 +141,8 @@ data.fillna(method='ffill',limit=2) #前值填充 仅限2个NA
 data.replace([-999,-100],[np.nan,0]) #替换数据
 data.replace({-999:np.nan,-100:0}) #功能同上
 
-
-#dataframe数据规整化################################################        
+#%%
+#dataframe数据规整化 ===========================================        
 #合并数据集-------------------------------------
 df = pd.merge(df1,df2,how="outer",on="localtime",suffixes=("_"+instru1,"_"+instru2)) #@axis=1(按照列合并)
 #如果未指定on则merge就会将重叠列的列名当作键 how=='left','right','inner'
@@ -146,14 +153,14 @@ df1.join([df2,df3],how='outer',on='key') #在key列合并                       
 np.concatenate([df1,df2],axis=1)                                                    #@axis=1
 pd.concat([df1,df2,df3],axis=0)#默认axis=0                                          #@axis=0(按照行合并)
 pd.concat([df1,df2,df3],axis=1,join='inner')                                        #@axis=1
-pd.concat([df1,df2],axis=1,join_axes=['a','c','b','e'])#指定在其他轴上使用的索引
-pd.concat([df1,df2,df3],axis=1,keys=['one','two','three'])#按照列合并
+pd.concat([df1,df2],axis=1,join_axes=['a','c','b','e'])# 指定在其他轴上使用的索引
+pd.concat([df1,df2,df3],axis=1,keys=['one','two','three'])# 按照列合并
 pd.concat([df1,df2],keys=['level1','level2'],names=['upper','lower']) #层次化索引的合并
 pd.concat([df1,df2],ignore_index=True) #忽略指数
 df1.combine_first(df2) #df1中的缺失值用df2对应的值补丁
 
-
-#dataframe文件输入与输出###############################################
+#%%
+#dataframe文件输入与输出 ===========================================
 df0=pd.read_excel('E:\test.xlsx')
 df01=df0.parse('Sheet1')#读取excel文件并选取相关表
 df1=pd.read_csv('E:\test.csv',names=['a','b','c','d'],index_col='a')
@@ -167,8 +174,9 @@ sery.from_csv('E:/test.csv',parse_dates = True) #series快速导出并解析日�
 result = json.loads(obj) #字典格式
 asjson = json.dumps(result) #将python对象转换成JSON格式 
       
-
-#Time Series###############################################################
+# %%
+#Time Series ===========================================
 #read_csv里存在时间日期解析
 dates = pd.date_range('2015-1-1',periods=9,freq='M') #创建一列字符串格式的时间序列
 #start=,end=,freq频率字符串=U微妙/L毫秒/S/T分钟/H小时/B交易日/D日历日/W/M/Q/A/BM月末交易日/MS月初/BMS月初交易日/
+df.index = pd.to_datetime(df.index) # transfer index into datetime

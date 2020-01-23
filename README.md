@@ -8,14 +8,12 @@ This project consists basic codes for new beginners of quant or data science ind
 Packages included
 -----------
 	- numpy
-	- numpy.linalg
 	- pandas
 	- tushare (financial data api)
 	- talib (pdf)
 	- candle line pattern recognition (pdf)
 	- crawler (very basic)
-	- statistics: basic
-	- statistics: time series
+	- statistics: basic/time series
 	- bars
 	- financial functions
 	- pricing
